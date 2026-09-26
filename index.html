@@ -62,16 +62,16 @@
     <main class="flex-1 flex flex-col overflow-hidden relative">
         
         <!-- VISUAL PREVIEW AREA (Always visible at top) -->
-        <section class="h-[42%] bg-slate-900/90 border-b border-slate-800 flex flex-col items-center justify-center p-3 relative shrink-0">
+        <section class="h-[40%] bg-slate-900/90 border-b border-slate-800 flex flex-col items-center justify-center p-2.5 relative shrink-0">
             <div class="relative shadow-2xl rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 max-h-full aspect-square flex items-center justify-center">
                 <div class="absolute inset-0 checkerboard z-0"></div>
-                <canvas id="stickerCanvas" width="512" height="512" class="relative z-10 w-[240px] h-[240px] sm:w-[280px] sm:h-[280px] object-contain touch-none"></canvas>
+                <canvas id="stickerCanvas" width="512" height="512" class="relative z-10 w-[220px] h-[220px] sm:w-[260px] sm:h-[260px] object-contain touch-none"></canvas>
                 
                 <div class="absolute top-2 left-2 z-20 bg-slate-900/80 backdrop-blur px-2 py-0.5 rounded border border-slate-700 text-[9px] font-mono text-emerald-400">
                     512x512 Transparente
                 </div>
             </div>
-            <p class="text-[10px] text-slate-400 mt-2 text-center">Desliza la foto para moverla o usa los controles inferiores</p>
+            <p class="text-[10px] text-slate-400 mt-1.5 text-center">Desliza la foto para moverla con el dedo</p>
         </section>
 
         <!-- CONTROLS & TABS PANEL -->
@@ -84,10 +84,10 @@
                 <div id="content-upload" class="tab-content space-y-4">
                     <div>
                         <h3 class="text-xs font-semibold text-slate-200 mb-1">Cargar Fotografía</h3>
-                        <p class="text-[11px] text-slate-400">Sube una imagen para recortar y armar tu sticker.</p>
+                        <p class="text-[11px] text-slate-400">Sube una imagen desde tu galería o cámara.</p>
                     </div>
 
-                    <label class="border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer bg-slate-950/40 transition block text-center">
+                    <label class="border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer bg-slate-950/40 transition block text-center">
                         <div class="w-12 h-12 rounded-full bg-slate-800 text-emerald-400 flex items-center justify-center text-lg mb-2 shadow">
                             <i class="fa-solid fa-arrow-up-from-bracket"></i>
                         </div>
@@ -111,22 +111,31 @@
                     </div>
                 </div>
 
-                <!-- TAB 2: FONDO MÁGICO -->
+                <!-- TAB 2: FONDO MÁGICO AJUSTABLE -->
                 <div id="content-bg" class="tab-content space-y-4 hidden">
                     <div>
-                        <h3 class="text-xs font-semibold text-slate-200 mb-1">Borrar Fondo Automático</h3>
-                        <p class="text-[11px] text-slate-400">Elimina el fondo y recorta los bordes de la figura.</p>
+                        <h3 class="text-xs font-semibold text-slate-200 mb-1">Borrado Inteligente de Fondo</h3>
+                        <p class="text-[11px] text-slate-400">Ajusta la tolerancia para no borrar por error la ropa o detalles.</p>
                     </div>
 
                     <div class="space-y-3 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                        <div>
+                            <div class="flex justify-between text-[11px] mb-1 text-slate-300">
+                                <span>Sensibilidad / Tolerancia</span>
+                                <span id="toleranceVal">25</span>
+                            </div>
+                            <input type="range" id="toleranceRange" min="5" max="70" value="25" class="w-full accent-emerald-500" oninput="document.getElementById('toleranceVal').innerText = this.value">
+                        </div>
+
                         <button onclick="app.autoRemoveBackground()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg shadow flex items-center justify-center space-x-2">
                             <i class="fa-solid fa-wand-magic-sparkles"></i>
-                            <span>Quitar Fondo (Color Sólido)</span>
+                            <span>Aplicar Borrado con Tolerancia</span>
                         </button>
-                        <button onclick="app.autoTrimImage()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg border border-slate-700 flex items-center justify-center space-x-2">
-                            <i class="fa-solid fa-crop"></i>
-                            <span>Auto-Recortar Orillas</span>
-                        </button>
+                        
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <button onclick="app.revertOriginalImage()" class="py-2 bg-slate-800 hover:bg-slate-700 text-xs text-rose-400 rounded-lg border border-slate-700">Restaurar Original</button>
+                            <button onclick="app.autoTrimImage()" class="py-2 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-lg border border-slate-700">Auto-Recortar</button>
+                        </div>
                     </div>
 
                     <div>
@@ -260,6 +269,7 @@
                 this.canvas = document.getElementById('stickerCanvas');
                 this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
                 
+                this.originalImg = new Image();
                 this.img = new Image();
                 this.imgLoaded = false;
                 this.imgX = 0;
@@ -273,7 +283,6 @@
                 
                 this.borderWidth = 0;
                 this.textLayers = [];
-                this.activeTextId = null;
                 this.stickerPack = [];
                 
                 this.initListeners();
@@ -320,7 +329,6 @@
             }
 
             initListeners() {
-                let lastTouchDist = 0;
                 this.canvas.addEventListener('touchstart', (e) => {
                     if (e.touches.length === 1) {
                         this.isDragging = true;
@@ -340,7 +348,7 @@
                 this.canvas.addEventListener('mousedown', (e) => {
                     this.isDragging = true;
                     this.startX = e.clientX - this.imgX;
-                    this.startY = e.clientY - this.startY;
+                    this.startY = e.clientY - this.imgY;
                 });
                 window.addEventListener('mousemove', (e) => {
                     if (!this.isDragging) return;
@@ -362,10 +370,15 @@
             }
 
             loadPreset(url) {
-                this.img = new Image();
-                this.img.crossOrigin = "anonymous";
-                this.img.onload = () => { this.imgLoaded = true; this.autoTrimAndFit(); };
-                this.img.src = url;
+                this.originalImg = new Image();
+                this.originalImg.crossOrigin = "anonymous";
+                this.originalImg.onload = () => {
+                    this.img = this.originalImg;
+                    this.imgLoaded = true;
+                    this.fitToCanvas();
+                    this.render();
+                };
+                this.originalImg.src = url;
             }
 
             handleImageUpload(e) {
@@ -373,14 +386,59 @@
                 if (!file) return;
                 const r = new FileReader();
                 r.onload = (ev) => {
-                    this.img = new Image();
-                    this.img.onload = () => { this.imgLoaded = true; this.autoTrimAndFit(); };
-                    this.img.src = ev.target.result;
+                    this.originalImg = new Image();
+                    this.originalImg.onload = () => {
+                        this.img = this.originalImg;
+                        this.imgLoaded = true;
+                        this.fitToCanvas();
+                        this.render();
+                    };
+                    this.originalImg.src = ev.target.result;
                 };
                 r.readAsDataURL(file);
             }
 
-            autoTrimAndFit() {
+            revertOriginalImage() {
+                if (!this.originalImg.src) return;
+                this.img = this.originalImg;
+                this.render();
+                this.showToast("Imagen restaurada");
+            }
+
+            autoRemoveBackground() {
+                if (!this.imgLoaded) return;
+                const tolerance = parseInt(document.getElementById('toleranceRange').value);
+
+                const tempC = document.createElement('canvas');
+                tempC.width = this.img.width; tempC.height = this.img.height;
+                const tCtx = tempC.getContext('2d', { willReadFrequently: true });
+                tCtx.drawImage(this.img, 0, 0);
+                const id = tCtx.getImageData(0, 0, tempC.width, tempC.height);
+                const d = id.data;
+                
+                const refColors = [
+                    [d[0], d[1], d[2]],
+                    [d[(tempC.width - 1) * 4], d[(tempC.width - 1) * 4 + 1], d[(tempC.width - 1) * 4 + 2]],
+                    [d[(tempC.height - 1) * tempC.width * 4], d[(tempC.height - 1) * tempC.width * 4 + 1], d[(tempC.height - 1) * tempC.width * 4 + 2]]
+                ];
+
+                for (let i = 0; i < d.length; i += 4) {
+                    const r = d[i], g = d[i+1], b = d[i+2];
+                    for (let ref of refColors) {
+                        const dist = Math.sqrt(Math.pow(r - ref[0], 2) + Math.pow(g - ref[1], 2) + Math.pow(b - ref[2], 2));
+                        if (dist < tolerance * 2) {
+                            d[i+3] = 0;
+                        }
+                    }
+                }
+                tCtx.putImageData(id, 0, 0);
+                this.img = new Image();
+                this.img.onload = () => { this.render(); this.showToast("Fondo ajustado"); };
+                this.img.src = tempC.toDataURL('image/png');
+            }
+
+            autoTrimImage() {
+                if (!this.imgLoaded) return;
                 const tempC = document.createElement('canvas');
                 tempC.width = this.img.width;
                 tempC.height = this.img.height;
@@ -390,13 +448,11 @@
                 const d = tCtx.getImageData(0, 0, tempC.width, tempC.height).data;
                 let w = tempC.width, h = tempC.height;
                 let top = null, bottom = null, left = null, right = null;
-                const bgR = d[0], bgG = d[1], bgB = d[2];
 
                 for (let y = 0; y < h; y++) {
                     for (let x = 0; x < w; x++) {
                         const i = (y * w + x) * 4;
-                        const isBg = (d[i+3] < 20) || (Math.abs(d[i]-bgR) < 30 && Math.abs(d[i+1]-bgG) < 30 && Math.abs(d[i+2]-bgB) < 30);
-                        if (!isBg) {
+                        if (d[i+3] > 20) {
                             if (top === null) top = y;
                             if (bottom === null || y > bottom) bottom = y;
                             if (left === null || x < left) left = x;
@@ -406,7 +462,7 @@
                 }
 
                 if (top !== null) {
-                    const pad = 10;
+                    const pad = 12;
                     top = Math.max(0, top - pad); bottom = Math.min(h, bottom + pad);
                     left = Math.max(0, left - pad); right = Math.min(w, right + pad);
                     const cw = right - left, ch = bottom - top;
@@ -414,35 +470,10 @@
                     cropC.width = cw; cropC.height = ch;
                     cropC.getContext('2d', { willReadFrequently: true }).drawImage(tempC, left, top, cw, ch, 0, 0, cw, ch);
                     this.img = new Image();
-                    this.img.onload = () => { this.fitToCanvas(); this.render(); };
+                    this.img.onload = () => { this.fitToCanvas(); this.render(); this.showToast("Orillas ajustadas"); };
                     this.img.src = cropC.toDataURL('image/png');
-                } else {
-                    this.fitToCanvas();
-                    this.render();
                 }
             }
-
-            autoRemoveBackground() {
-                if (!this.imgLoaded) return;
-                const tempC = document.createElement('canvas');
-                tempC.width = this.img.width; tempC.height = this.img.height;
-                const tCtx = tempC.getContext('2d', { willReadFrequently: true });
-                tCtx.drawImage(this.img, 0, 0);
-                const id = tCtx.getImageData(0, 0, tempC.width, tempC.height);
-                const d = id.data;
-                const ref = [d[0], d[1], d[2]];
-
-                for (let i = 0; i < d.length; i += 4) {
-                    const dist = Math.sqrt(Math.pow(d[i]-ref[0],2) + Math.pow(d[i+1]-ref[1],2) + Math.pow(d[i+2]-ref[2],2));
-                    if (dist < 50) d[i+3] = 0;
-                }
-                tCtx.putImageData(id, 0, 0);
-                this.img = new Image();
-                this.img.onload = () => { this.render(); this.showToast("Fondo eliminado"); };
-                this.img.src = tempC.toDataURL('image/png');
-            }
-
-            autoTrimImage() { this.autoTrimAndFit(); this.showToast("Orillas ajustadas"); }
 
             fitToCanvas() {
                 const max = 380;
@@ -551,8 +582,17 @@
                 });
             }
 
+            getExportCanvas() {
+                const ec = document.createElement('canvas');
+                ec.width = 512; ec.height = 512;
+                const eCtx = ec.getContext('2d', { willReadFrequently: true });
+                eCtx.clearRect(0, 0, 512, 512);
+                eCtx.drawImage(this.canvas, 0, 0);
+                return ec;
+            }
+
             downloadSticker() {
-                const url = this.canvas.toDataURL('image/webp', 0.95);
+                const url = this.getExportCanvas().toDataURL('image/webp', 0.95);
                 const l = document.createElement('a');
                 l.download = `sticker_${Date.now()}.webp`;
                 l.href = url;
@@ -561,7 +601,7 @@
             }
 
             addToPack() {
-                this.stickerPack.push(this.canvas.toDataURL('image/webp', 0.95));
+                this.stickerPack.push(this.getExportCanvas().toDataURL('image/webp', 0.95));
                 document.getElementById('packCount').innerText = this.stickerPack.length;
                 this.showToast("Añadido al pack");
             }
